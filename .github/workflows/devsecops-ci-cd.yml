@@ -1,0 +1,43 @@
+name: "Enterprise IaaS Landing Zone CI/CD Pipeline"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  lint-and-validate:
+    name: "01. Lint & Validate"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+      - run: terraform fmt -check -recursive
+
+  security-sast:
+    name: "02. SAST Security Scan"
+    needs: [lint-and-validate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bridgecrewio/checkov-action@master
+        with:
+          framework: terraform
+          soft_fail: true
+
+  terraform-plan:
+    name: "03. Terraform Dry-Run (Plan)"
+    needs: [security-sast]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+      - working-directory: terraform/environments/prod
+        run: |
+          terraform init -backend=false
+          terraform validate
